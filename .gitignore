@@ -1,0 +1,28 @@
+# Nim files
+nimcache/
+*.exe
+*_d.exe
+*.dll
+*_d.dll
+*.so
+*_d.so
+*.dylib
+*_d.dylib
+
+# Build artifacts
+tests/test_ipv4
+tests/test_tcp
+tests/test_udp
+tests/test_icmp
+tests/test_integration
+examples/demo
+examples/packet_analyzer
+
+# IDE
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
