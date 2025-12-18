@@ -6,9 +6,11 @@
 import std/[strutils, endians]
 import ethernet, arp
 import ipv6, icmpv6
+import rawsocket
 
 export ethernet, arp
 export ipv6, icmpv6
+export rawsocket
 
 type
   # IPv4 Header Structure

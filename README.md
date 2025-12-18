@@ -234,6 +234,183 @@ type ICMPv6Header = object
   - `ipv6 / icmpv6 / payload` - IPv6 packet with ICMPv6
 - `Packet.toBytes()` - Serialize complete packet to bytes
 
+## Raw Socket I/O
+
+**IMPORTANT PRIVILEGE REQUIREMENTS:**
+- **Windows:** Must run as Administrator
+- **Linux:** Must run as root or with CAP_NET_RAW capability
+- **macOS:** Must run as root
+
+NimPacket now includes full raw socket support for sending and receiving packets at the IP layer. This allows you to actually transmit the packets you build and receive responses from the network.
+
+### Socket Creation
+
+```nim
+# Create raw sockets for different protocols
+let icmpSock = createICMPSocket()      # ICMP (ping)
+let tcpSock = createTCPSocket()        # TCP
+let udpSock = createUDPSocket()        # UDP
+let ipSock = createIPSocket()          # All IP packets
+
+# Generic creation
+let sock = createRawSocket(AF_INET, IPPROTO_TCP)
+
+# Always close sockets when done
+defer: sock.close()
+```
+
+### Sending Packets
+
+```nim
+import nimpacket
+
+# Build a TCP SYN packet
+let packet = (IPv4Header(
+  version: 4, headerLength: 5, totalLength: 40,
+  protocol: IPPROTO_TCP,
+  sourceIP: parseIPv4("192.168.1.10"),
+  destIP: parseIPv4("192.168.1.1")
+) / TCPHeader(
+  sourcePort: 12345,
+  destPort: 80,
+  flags: TCP_SYN
+))
+
+# Send the packet
+let sock = createTCPSocket()
+defer: sock.close()
+sock.sendPacket(packet.toBytes(), "192.168.1.1")
+```
+
+### Receiving Packets
+
+```nim
+# Receive with timeout
+let response = sock.receivePacket(timeoutMs = 5000)
+
+if response.len > 0:
+  let packet = parsePacket(response)
+  echo "Received from: ", ipToString(packet.ipv4.sourceIP)
+```
+
+### Filtered Receiving
+
+```nim
+# Wait for specific packets using a filter function
+let response = sock.receivePacketWithTimeout(5.0) do (data: seq[byte]) -> bool:
+  let pkt = parsePacket(data)
+  return pkt.ipv4.protocol == IPPROTO_ICMP and
+         pkt.icmp.icmpType == ICMP_ECHO_REPLY
+
+if response.len > 0:
+  echo "Got ICMP Echo Reply!"
+```
+
+### Socket Options
+
+```nim
+# Enable IP header inclusion (for custom IP headers)
+sock.setIPHeaderInclude(true)
+
+# Set receive timeout
+sock.setReceiveTimeout(3000)  # 3 seconds
+
+# Enable broadcast
+sock.setBroadcast(true)
+
+# Enable promiscuous mode (Windows only)
+sock.setPromiscuousMode(true)  # Captures all network traffic
+```
+
+### Privilege Checking
+
+```nim
+# Check if running with sufficient privileges
+if not isRunningAsAdmin():
+  echo "Error: This program requires administrator/root privileges"
+  quit(1)
+```
+
+### Complete ICMP Ping Example
+
+```nim
+import nimpacket
+import std/random
+
+let sock = createICMPSocket()
+defer: sock.close()
+
+# Build ICMP Echo Request
+var icmp = ICMPHeader(
+  icmpType: ICMP_ECHO_REQUEST,
+  code: 0,
+  identifier: 1234,
+  sequenceNumber: 1
+)
+
+let payload = "Hello, World!".toBytes()
+icmp.checksum = calculateICMPChecksum(icmp, payload)
+
+# Build IP header
+var ip = IPv4Header(
+  version: 4,
+  headerLength: 5,
+  totalLength: (20 + 8 + payload.len).uint16,
+  identification: rand(65535).uint16,
+  protocol: IPPROTO_ICMP,
+  sourceIP: parseIPv4("192.168.1.10"),
+  destIP: parseIPv4("8.8.8.8")
+)
+
+ip.checksum = calculateIPv4Checksum(ip)
+
+# Send packet
+let packet = (ip / icmp / payload).toBytes()
+sock.sendPacket(packet, "8.8.8.8")
+
+# Wait for reply
+let response = sock.receivePacketWithTimeout(5.0) do (data: seq[byte]) -> bool:
+  let pkt = parsePacket(data)
+  return pkt.ipv4.protocol == IPPROTO_ICMP and
+         pkt.icmp.icmpType == ICMP_ECHO_REPLY and
+         pkt.icmp.identifier == 1234
+
+if response.len > 0:
+  echo "Ping successful!"
+```
+
+### Raw Socket Functions
+
+**Socket Creation:**
+- `createRawSocket(family, protocol)` - Create raw socket with specific family and protocol
+- `createICMPSocket()` - Create ICMP socket for ping
+- `createTCPSocket()` - Create TCP raw socket
+- `createUDPSocket()` - Create UDP raw socket
+- `createIPSocket()` - Create IP socket (receives all protocols)
+- `close()` - Close socket and free resources
+
+**Sending/Receiving:**
+- `sendPacket(packet: seq[byte], destIP: string): int` - Send packet to destination
+- `receivePacket(maxSize = 65535, timeoutMs = 5000): seq[byte]` - Receive packet with timeout
+- `receivePacketWithTimeout(timeoutSec, filter): seq[byte]` - Receive with custom filter
+
+**Socket Options:**
+- `setIPHeaderInclude(enable: bool)` - Enable/disable IP_HDRINCL option
+- `setReceiveTimeout(timeoutMs: int)` - Set receive timeout
+- `setBroadcast(enable: bool)` - Enable/disable broadcast
+- `setPromiscuousMode(enable: bool)` - Enable promiscuous mode (Windows only)
+
+**Utilities:**
+- `isRunningAsAdmin(): bool` - Check if process has required privileges
+
+**Error Types:**
+- `RawSocketError` - Base error type for raw socket operations
+- `PrivilegeError` - Insufficient privileges (not admin/root)
+- `SocketCreateError` - Failed to create socket
+- `SocketSendError` - Failed to send packet
+- `SocketReceiveError` - Failed to receive packet
+- `SocketOptionError` - Failed to set socket option
+
 ## Constants
 
 ### EtherTypes
@@ -449,8 +626,10 @@ I mainly use NimPacket for:
 - Security research and penetration testing
 - Implementing network protocols from scratch
 - Traffic analysis and monitoring
+- **Sending and receiving raw packets with real network I/O**
+- **Building complete network tools like ping, traceroute, and custom scanners**
 
-The library just handles the annoying packet format stuff so I can focus on the actual logic.
+The library handles the annoying packet format stuff and raw socket complexities so I can focus on the actual tool logic.
 
 ## Demo Programs
 
@@ -463,6 +642,7 @@ nim c -r examples/ipv6_demo.nim         # IPv6 and ICMPv6 examples
 nim c -r examples/ethernet_demo.nim     # Ethernet frame examples
 nim c -r examples/arp_demo.nim          # ARP protocol examples
 nim c -r examples/packet_analyzer.nim   # Packet analysis tool
+nim c -r examples/rawsocket_demo.nim    # Raw socket I/O demo (requires admin)
 ```
 
 **demo.nim** - Basic IPv4 protocol examples:
@@ -492,6 +672,15 @@ nim c -r examples/packet_analyzer.nim   # Packet analysis tool
 - Different ARP packet types (gratuitous, standard)
 - Parsing and analyzing ARP traffic
 
+**rawsocket_demo.nim** - Raw socket I/O examples (requires admin/root):
+- Privilege checking
+- Creating and configuring raw sockets
+- Sending ICMP Echo Requests (ping)
+- Sending TCP SYN packets
+- Receiving and parsing responses
+- Socket options configuration
+- Complete send/receive workflow with real network targets
+
 ## Testing
 
 Run all tests:
@@ -509,8 +698,11 @@ nimble test_tcp
 nimble test_udp
 nimble test_icmp
 nimble test_icmpv6
+nimble test_rawsocket    # Requires admin/root privileges
 nimble test_integration
 ```
+
+**Note:** Raw socket tests require administrator/root privileges. Run with `sudo` on Linux or as Administrator on Windows.
 
 ## Performance Notes
 
@@ -518,7 +710,18 @@ Pretty fast. Headers are just structs, serialization is basically memcpy, and I 
 
 ## Platform Support
 
-Tested on Kali Linux. Should work on other Linux distros. Windows probably works but haven't tested it.
+**Tested and working on:**
+- **Windows** - Full raw socket support via Winsock2 (tested on Windows 10/11)
+- **Linux** - Kali Linux and other distros (requires CAP_NET_RAW or root)
+
+**Should work on:**
+- macOS (requires root privileges)
+- Other Unix-like systems with POSIX socket support
+
+**Raw socket notes:**
+- Windows: Requires Administrator privileges
+- Linux: Requires root or CAP_NET_RAW capability (`sudo setcap cap_net_raw+ep your_binary`)
+- The library automatically detects Windows vs Unix and uses appropriate socket APIs
 
 ## GitHub Repository
 

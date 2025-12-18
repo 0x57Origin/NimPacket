@@ -25,4 +25,5 @@ examples/packet_analyzer
 
 # OS
 .DS_Store
-Thumbs.db
+Thumbs.db.claude/
+*.exe

@@ -47,6 +47,9 @@ task test_ipv6, "Run IPv6 tests":
 task test_icmpv6, "Run ICMPv6 tests":
   exec "nim c -r tests/test_icmpv6.nim"
 
+task test_rawsocket, "Run raw socket tests (requires admin/root)":
+  exec "nim c -r tests/test_rawsocket.nim"
+
 task test_integration, "Run integration tests":
   exec "nim c -r tests/test_integration.nim"
 
