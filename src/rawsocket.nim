@@ -333,10 +333,10 @@ proc sendPacket*(sock: RawSocket, packet: seq[byte], destIP: string): int {.disc
                       addr destAddr.sin_addr) != 1:
       raise newException(SocketSendError, "Invalid IP address: " & destIP)
 
-    let bytesSent = posix.sendto(sock.handle, unsafeAddr packet[0],
-                                packet.len.csize_t, 0,
+    let bytesSent = posix.sendto(sock.handle.cint, unsafeAddr packet[0],
+                                packet.len, 0.cint,
                                 cast[ptr SockAddr](addr destAddr),
-                                sizeof(destAddr).SockLen)
+                                sizeof(destAddr).Socklen)
 
     if bytesSent == SOCKET_ERROR:
       raise newException(SocketSendError,
