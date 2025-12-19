@@ -271,8 +271,8 @@ proc setReceiveTimeout*(sock: RawSocket, timeoutMs: int) =
         "Failed to set receive timeout. Error code: " & $error)
   else:
     var timeout: Timeval
-    timeout.tv_sec = (timeoutMs div 1000).Time
-    timeout.tv_usec = ((timeoutMs mod 1000) * 1000).Suseconds
+    timeout.tv_sec = posix.Time(timeoutMs div 1000)
+    timeout.tv_usec = posix.Suseconds((timeoutMs mod 1000) * 1000)
     let result = posix.setsockopt(sock.handle, posix.SOL_SOCKET,
                                  posix.SO_RCVTIMEO,
                                  addr timeout, sizeof(timeout).SockLen)
