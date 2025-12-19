@@ -1,8 +1,8 @@
 # NimPacket
 
-🌐 **Website:** https://nim-packet-website.vercel.app  
-📦 **Install:** `nimble install nimpacket`  
-📂 **GitHub:** https://github.com/0x57Origin/NimPacket
+> **Website:** https://nim-packet-website.vercel.app  
+> **Install:** `nimble install nimpacket`  
+> **GitHub:** https://github.com/0x57Origin/NimPacket
 
 
 ```
