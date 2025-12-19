@@ -379,7 +379,7 @@ proc receivePacket*(sock: RawSocket, maxSize: int = 65535,
     var fromLen: SockLen = sizeof(fromAddr).SockLen
 
     let bytesReceived = posix.recvfrom(sock.handle, addr buffer[0],
-                                      maxSize.csize_t, 0,
+                                      maxSize, 0.cint,
                                       cast[ptr SockAddr](addr fromAddr),
                                       addr fromLen)
 
